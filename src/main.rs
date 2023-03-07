@@ -3,23 +3,18 @@ use std::io::{BufRead, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::result;
 
-use tracing::{info, instrument};
-
 type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
 
 fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
-
     let listener = TcpListener::bind("127.0.0.1:3000")?;
 
     for stream in listener.incoming() {
         let req = parse_request(stream?)?;
-        info!(?req);
+        println!("{:?}", req);
     }
     Ok(())
 }
 
-#[instrument(skip(stream), ret, err)]
 fn parse_request(mut stream: TcpStream) -> Result<http::Request<Vec<u8>>> {
     let mut reader = BufReader::new(&mut stream).lines();
 
