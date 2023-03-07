@@ -9,28 +9,42 @@ fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3000")?;
 
     for stream in listener.incoming() {
-        handle_connection(stream?)?;
+        let req = parse_request(stream?)?;
+        println!("{:?}", req);
     }
     Ok(())
 }
 
-fn handle_connection(mut stream: TcpStream) -> Result<()> {
+fn parse_request(mut stream: TcpStream) -> Result<http::Request<Vec<u8>>> {
     let mut reader = BufReader::new(&mut stream).lines();
 
     // request line.
     let req_line = reader.next().ok_or("missing request line")??;
-    println!("{:#?}", req_line);
+    let req_line: Vec<_> = req_line.split_whitespace().collect();
+    let mut req = http::Request::default();
+    *req.method_mut() = http::Method::try_from(req_line[0])?;
+    *req.uri_mut() = http::Uri::try_from(req_line[1])?;
+    // no check for version and default to HTTP/1.1.
 
     // headers.
-    let mut headers = vec![];
+    let headers = req.headers_mut();
     for line in reader {
         let line = line?;
         if line.is_empty() {
             break;
         }
-        headers.push(line);
+        let header: Vec<_> = line.split(':').collect();
+        let key = http::HeaderName::try_from(header[0].trim())?;
+        let value = http::HeaderValue::from_str(header[1].trim())?;
+        headers.append(key, value);
     }
-    println!("{:#?}", headers);
 
-    Ok(())
+    /*
+    // body...
+    *req.body_mut() = reader
+        .flat_map(|line| line.unwrap().into_bytes())
+        .collect();
+    */
+
+    Ok(req)
 }
