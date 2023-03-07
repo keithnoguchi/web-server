@@ -8,6 +8,8 @@ use tracing::{info, instrument};
 type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
 
 fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let listener = TcpListener::bind("127.0.0.1:3000")?;
 
     for stream in listener.incoming() {
