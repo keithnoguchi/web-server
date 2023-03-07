@@ -19,7 +19,7 @@ fn handle_connection(mut stream: TcpStream) -> Result<()> {
 
     // request line.
     let req_line = reader.next().ok_or("missing request line")??;
-    println!("{req_line:#?}");
+    println!("{:#?}", req_line);
 
     // headers.
     let mut headers = vec![];
@@ -30,7 +30,7 @@ fn handle_connection(mut stream: TcpStream) -> Result<()> {
         }
         headers.push(line);
     }
-    println!("{headers:#?}");
+    println!("{:#?}", headers);
 
     Ok(())
 }
