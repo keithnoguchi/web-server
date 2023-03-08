@@ -4,8 +4,8 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::result;
 use std::sync::mpsc::{sync_channel, SyncSender};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
 
 type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
 
@@ -28,11 +28,26 @@ struct ThreadPool {
 
 impl ThreadPool {
     fn new(size: usize) -> Self {
-        let (tx, _rx) = sync_channel(size);
-        let worker = || loop {
-            thread::sleep(Duration::from_secs(1));
-        };
-        let _workers: Vec<_> = (0..size).map(|_| thread::spawn(worker)).collect();
+        let (tx, rx) = sync_channel::<Box<dyn FnOnce() -> Result<()> + Send + 'static>>(size);
+        let rx = Arc::new(Mutex::new(rx));
+        let _workers: Vec<_> = (0..size)
+            .map(|_| {
+                let rx = rx.clone();
+                thread::spawn(move || loop {
+                    let f = rx.lock().unwrap().recv();
+                    match f {
+                        Ok(f) => {
+                            if let Err(e) = f() {
+                                dbg!(e);
+                            }
+                        }
+                        Err(e) => {
+                            dbg!(e);
+                        }
+                    }
+                })
+            })
+            .collect();
         Self { _workers, tx }
     }
 
