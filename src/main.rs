@@ -4,28 +4,45 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::result;
 use std::thread;
+use std::time::Duration;
 
 type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
 
 fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3000")?;
+    let pool = ThreadPool::new(4);
 
-    let mut workers = vec![];
     for s in listener.incoming() {
         let s = s?;
-        workers.push(thread::spawn(move || {
-            if let Err(e) = handle_connection(s) {
-                dbg!(e);
-            }
-        }));
-    }
-    for worker in workers {
-        if let Err(e) = worker.join() {
-            dbg!(e);
-        }
+        pool.execute(|| handle_connection(s));
     }
 
     Ok(())
+}
+
+struct ThreadPool<R: Send + 'static> {
+    _workers: Vec<thread::JoinHandle<Result<R>>>,
+}
+
+impl<R: Send + 'static> ThreadPool<R> {
+    fn new(size: usize) -> Self {
+        assert!(size != 0);
+        let worker = || loop {
+            thread::sleep(Duration::from_secs(1));
+        };
+        let _workers: Vec<_> = (0..size).map(|_| thread::spawn(worker)).collect();
+
+        Self { _workers }
+    }
+
+    fn execute<F>(&self, handler: F)
+    where
+        F: FnOnce() -> Result<R>,
+    {
+        if let Err(e) = handler() {
+            dbg!(e);
+        }
+    }
 }
 
 fn handle_connection(mut s: TcpStream) -> Result<()> {
