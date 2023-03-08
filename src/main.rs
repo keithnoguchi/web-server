@@ -13,7 +13,8 @@ fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3000")?;
     let pool = ThreadPool::new(4);
 
-    for s in listener.incoming() {
+    // only take 5 sessions.
+    for s in listener.incoming().take(5) {
         let s = s?;
         pool.execute(|| handle_connection(s));
     }
@@ -22,15 +23,29 @@ fn main() -> Result<()> {
 }
 
 struct ThreadPool {
-    _workers: Vec<JoinHandle<()>>,
-    tx: SyncSender<Box<dyn FnOnce() -> Result<()> + Send + 'static>>,
+    workers: Vec<JoinHandle<()>>,
+    tx: Option<SyncSender<Box<dyn FnOnce() -> Result<()> + Send + 'static>>>,
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            drop(tx);
+            for worker in self.workers.drain(..) {
+                if let Err(e) = worker.join() {
+                    dbg!(e);
+                }
+            }
+        }
+    }
 }
 
 impl ThreadPool {
     fn new(size: usize) -> Self {
         let (tx, rx) = sync_channel::<Box<dyn FnOnce() -> Result<()> + Send + 'static>>(size);
+        let tx = Some(tx);
         let rx = Arc::new(Mutex::new(rx));
-        let _workers: Vec<_> = (0..size)
+        let workers: Vec<_> = (0..size)
             .map(|_| {
                 let rx = rx.clone();
                 thread::spawn(move || loop {
@@ -43,20 +58,23 @@ impl ThreadPool {
                         }
                         Err(e) => {
                             dbg!(e);
+                            return;
                         }
                     }
                 })
             })
             .collect();
-        Self { _workers, tx }
+        Self { workers, tx }
     }
 
     fn execute<F>(&self, f: F)
     where
         F: FnOnce() -> Result<()> + Send + 'static,
     {
-        if let Err(e) = self.tx.send(Box::new(f)) {
-            dbg!(e);
+        if let Some(tx) = self.tx.as_ref() {
+            if let Err(e) = tx.send(Box::new(f)) {
+                dbg!(e);
+            }
         }
     }
 }
