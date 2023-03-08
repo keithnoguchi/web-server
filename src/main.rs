@@ -3,6 +3,8 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::result;
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
 
@@ -18,11 +20,17 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-struct ThreadPool {}
+struct ThreadPool {
+    _workers: Vec<JoinHandle<()>>,
+}
 
 impl ThreadPool {
     fn new(size: usize) -> Self {
-        Self {}
+        let worker = || loop {
+            thread::sleep(Duration::from_secs(1));
+        };
+        let _workers: Vec<_> = (0..size).map(|_| thread::spawn(worker)).collect();
+        Self { _workers }
     }
 
     fn execute<F>(&self, f: F)
