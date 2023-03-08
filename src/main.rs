@@ -26,9 +26,10 @@ impl ThreadPool {
         Self {}
     }
 
-    fn execute<F>(&self, handler: F)
+    fn execute<F, R>(&self, handler: F)
     where
-        F: FnOnce() -> Result<()>,
+        F: FnOnce() -> Result<R>,
+        R: Send,
     {
         if let Err(e) = handler() {
             dbg!(e);
