@@ -48,9 +48,11 @@ fn handle_connection(mut s: TcpStream) -> Result<()> {
     Ok(())
 }
 
+type Job = Box<dyn FnOnce() -> Result<()> + Send + 'static>;
+
 struct ThreadPool {
     workers: Vec<JoinHandle<()>>,
-    tx: Option<SyncSender<Box<dyn FnOnce() -> Result<()> + Send + 'static>>>,
+    tx: Option<SyncSender<Job>>,
 }
 
 impl Drop for ThreadPool {
@@ -70,7 +72,7 @@ impl Drop for ThreadPool {
 impl ThreadPool {
     #[instrument]
     fn new(size: usize) -> Self {
-        let (tx, rx) = sync_channel::<Box<dyn FnOnce() -> Result<()> + Send + 'static>>(size);
+        let (tx, rx) = sync_channel::<Job>(size);
         let tx = Some(tx);
         let rx = Arc::new(Mutex::new(rx));
         let workers: Vec<_> = (0..size)
@@ -80,16 +82,11 @@ impl ThreadPool {
                     let f = rx.lock().unwrap().recv();
                     match f {
                         Ok(f) => {
-                            debug!(%id, "start handler");
                             if let Err(e) = f() {
                                 error!(%id, error = ?e, "handle error");
                             }
-                            debug!(%id, "finish handler");
                         }
-                        Err(e) => {
-                            error!(%id, error = ?e, "channel error");
-                            return;
-                        }
+                        Err(_e) => return, // graceful shutdown
                     }
                 })
             })
