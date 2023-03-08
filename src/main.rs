@@ -1,29 +1,32 @@
 use std::error::Error;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::result;
 
-type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
+type Result<T> = result::Result<T, Box<dyn Error>>;
 
 fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3000")?;
 
-    for stream in listener.incoming() {
-        let mut stream = stream?;
-        handle_connection(&mut stream)?;
+    for s in listener.incoming() {
+        let s = s?;
+        handle_connection(s)?;
     }
 
     Ok(())
 }
 
-fn handle_connection(s: &mut TcpStream) -> Result<()> {
-    let req: Vec<_> = BufReader::new(s)
+fn handle_connection(mut s: TcpStream) -> Result<()> {
+    let req: Vec<_> = BufReader::new(&mut s)
         .lines()
         .map(|line| line.unwrap())
         .take_while(|line| !line.is_empty())
         .collect();
 
-    println!("{:#?}", req);
+    dbg!(req);
+
+    let resp = "HTTP/1.1 200 OK\r\n\r\n";
+    s.write_all(resp.as_bytes())?;
 
     Ok(())
 }
