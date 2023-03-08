@@ -29,26 +29,14 @@ fn handle_connection(mut s: TcpStream) -> Result<()> {
     dbg!(&req_line);
 
     // A response.
-    match req_line.as_str() {
-        "GET / HTTP/1.1" => {
-            let status_line = "HTTP/1.1 200 OK";
-            let content = fs::read_to_string("index.html")?;
-            let length = content.len();
-            let resp = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{content}");
-            dbg!(&resp);
-
-            s.write_all(resp.as_bytes())?;
-        }
-        _ => {
-            let status_line = "HTTP/1.1 404 Not found";
-            let content = fs::read_to_string("404.html")?;
-            let length = content.len();
-            let resp = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{content}");
-            dbg!(&resp);
-
-            s.write_all(resp.as_bytes())?;
-        }
-    }
+    let (status, file) = match req_line.as_str() {
+        "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "index.html"),
+        _ => ("HTTP/1.1 404 Not Found", "404.html"),
+    };
+    let content = fs::read_to_string(file)?;
+    let len = content.len();
+    let resp = format!("{status}\r\nContent-Length: {len}\r\n\r\n{content}");
+    s.write_all(resp.as_bytes())?;
 
     Ok(())
 }
