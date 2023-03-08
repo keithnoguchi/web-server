@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::result;
 
-type Result<T> = result::Result<T, Box<dyn Error>>;
+type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
 
 fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3000")?;
@@ -20,15 +20,15 @@ fn main() -> Result<()> {
 }
 
 fn handle_connection(mut s: TcpStream) -> Result<()> {
-    // request.
+    // A request.
     let req_line = BufReader::new(&mut s)
         .lines()
         .next()
-        .unwrap()
-        .unwrap();
+        .ok_or("invalid HTTP request line")??;
 
     dbg!(&req_line);
 
+    // A response.
     match req_line.as_str() {
         "GET / HTTP/1.1" => {
             let status_line = "HTTP/1.1 200 OK";
