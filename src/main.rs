@@ -30,9 +30,7 @@ impl<R: Send + 'static> ThreadPool<R> {
         let worker = || loop {
             thread::sleep(Duration::from_secs(1));
         };
-        let _workers: Vec<_> = (0..size)
-            .map(|_| thread::spawn(worker))
-            .collect();
+        let _workers: Vec<_> = (0..size).map(|_| thread::spawn(worker)).collect();
 
         Self { _workers }
     }
