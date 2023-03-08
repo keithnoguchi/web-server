@@ -23,24 +23,24 @@ fn main() -> Result<()> {
 
 struct ThreadPool {
     _workers: Vec<JoinHandle<()>>,
-    _tx: SyncSender<Box<dyn FnOnce() -> Result<()>>>,
+    tx: SyncSender<Box<dyn FnOnce() -> Result<()> + Send + 'static>>,
 }
 
 impl ThreadPool {
     fn new(size: usize) -> Self {
-        let (_tx, _rx) = sync_channel(size);
+        let (tx, _rx) = sync_channel(size);
         let worker = || loop {
             thread::sleep(Duration::from_secs(1));
         };
         let _workers: Vec<_> = (0..size).map(|_| thread::spawn(worker)).collect();
-        Self { _workers, _tx }
+        Self { _workers, tx }
     }
 
     fn execute<F>(&self, f: F)
     where
-        F: FnOnce() -> Result<()>,
+        F: FnOnce() -> Result<()> + Send + 'static,
     {
-        if let Err(e) = f() {
+        if let Err(e) = self.tx.send(Box::new(f)) {
             dbg!(e);
         }
     }
