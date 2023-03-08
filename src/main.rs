@@ -3,15 +3,24 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::result;
+use std::thread;
 
 type Result<T> = result::Result<T, Box<dyn Error + Send + Sync + 'static>>;
 
 fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:3000")?;
 
+    let mut workers = vec![];
     for s in listener.incoming() {
         let s = s?;
-        if let Err(e) = handle_connection(s) {
+        workers.push(thread::spawn(move || {
+            if let Err(e) = handle_connection(s) {
+                dbg!(e);
+            }
+        }));
+    }
+    for worker in workers {
+        if let Err(e) = worker.join() {
             dbg!(e);
         }
     }
