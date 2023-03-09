@@ -118,6 +118,7 @@ impl ThreadPool {
             }
         }
     }
-}```
+}
+```
 
 Happy Hacking!
