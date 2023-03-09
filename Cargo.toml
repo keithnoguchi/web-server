@@ -7,3 +7,5 @@ rust-version = "1.59"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
