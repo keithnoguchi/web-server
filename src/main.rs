@@ -17,13 +17,28 @@ type Job = Box<dyn FnOnce() -> Result<()> + Send + Sync + 'static>;
 
 #[derive(Debug)]
 pub struct ThreadPool {
-    tx: SyncSender<Job>,
+    tx: Option<SyncSender<Job>>,
     workers: Vec<JoinHandle<()>>,
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            drop(tx);
+
+            for worker in self.workers.drain(..) {
+                if let Err(e) = worker.join() {
+                    dbg!(e);
+                }
+            }
+        }
+    }
 }
 
 impl ThreadPool {
     pub fn new(size: usize) -> Self {
         let (tx, rx) = sync_channel::<Job>(size);
+        let tx = Some(tx);
         let rx = Arc::new(Mutex::new(rx));
         let mut workers = vec![];
         for _ in 0..size {
@@ -47,7 +62,7 @@ impl ThreadPool {
     where
         F: FnOnce() -> Result<()> + Send + Sync + 'static,
     {
-        self.tx.send(Box::new(f))?;
+        self.tx.as_ref().unwrap().send(Box::new(f))?;
         Ok(())
     }
 }
@@ -56,7 +71,7 @@ fn main() -> Result<()> {
     let listener = TcpListener::bind("localhost:3000")?;
     let pool = ThreadPool::new(4);
 
-    for stream in listener.incoming() {
+    for stream in listener.incoming().take(5) {
         let stream = stream?;
         if let Err(e) = pool.execute(move || handler(stream)) {
             dbg!(e);
